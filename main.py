@@ -186,7 +186,7 @@ SYSTEM_PROMPT = """You are a world-class LEGO expert and recommendation engine.
 You have deep knowledge of every LEGO theme, subtheme, set, and the collector community.
 You always respond with valid JSON only — no markdown, no extra text."""
 
-def build_prompt(sets_data: list[dict], total_count: int) -> str:
+def build_prompt(sets_data: list[dict], total_count: int, owned_nums: set[str]) -> str:
     collection_lines = []
     for s in sets_data:
         parts = f", {s['num_parts']} parts" if s.get("num_parts") else ""
@@ -195,10 +195,13 @@ def build_prompt(sets_data: list[dict], total_count: int) -> str:
         collection_lines.append(f"- {s['set_num']} {name}{year}{parts}")
 
     collection_str = "\n".join(collection_lines) if collection_lines else "(set numbers only, no metadata)"
+    owned_list = ", ".join(sorted(owned_nums)) if owned_nums else "none"
 
     return f"""The user owns {total_count} LEGO sets. Here is their collection (enriched data for up to 60 sets shown):
 
 {collection_str}
+
+OWNED SET NUMBERS (do NOT recommend any of these): {owned_list}
 
 Analyze their collection and return a JSON object with exactly this structure:
 
@@ -230,6 +233,7 @@ Analyze their collection and return a JSON object with exactly this structure:
 
 Rules:
 - Provide exactly 5 sets in each recommendation list
+- NEVER recommend a set the user already owns — cross-check every set_num against the OWNED SET NUMBERS list above
 - missing_from_collection: sets that complete series, fill theme gaps, or are iconic missing pieces given their taste
 - people_like_you: sets popular among LEGO fans with a similar collecting style, possibly outside their main themes
 - Reasons must be specific and reference actual sets in their collection
@@ -238,8 +242,8 @@ Rules:
 - Return valid JSON only"""
 
 
-async def get_recommendations(sets_data: list[dict], total_count: int) -> dict:
-    prompt = build_prompt(sets_data, total_count)
+async def get_recommendations(sets_data: list[dict], total_count: int, owned_nums: set[str]) -> dict:
+    prompt = build_prompt(sets_data, total_count, owned_nums)
 
     response = claude.messages.create(
         model="claude-opus-4-6",
@@ -280,11 +284,52 @@ async def recommend(request: Request, body: RecommendRequest):
 
     total_count = len(set_numbers)
 
+    # Build a normalized set of owned numbers for fast lookup
+    owned_nums = {normalize_set_num(s) for s in set_numbers}
+
     # 2. Enrich with Rebrickable (optional)
     sets_data = await enrich_sets(set_numbers)
 
-    # 3. Ask Claude
-    recommendations = await get_recommendations(sets_data, total_count)
+    # 3. Ask Claude (pass owned set numbers so it won't recommend them)
+    recommendations = await get_recommendations(sets_data, total_count, owned_nums)
+
+    # 4. Validate recommended sets against Rebrickable:
+    #    - override name with the real official name
+    #    - attach image URL
+    #    - remove any set Claude hallucinated into the owned collection
+    if REBRICKABLE_API_KEY:
+        all_rec_sets = (
+            recommendations.get("missing_from_collection", []) +
+            recommendations.get("people_like_you", [])
+        )
+        rec_set_nums = [s["set_num"] for s in all_rec_sets if s.get("set_num")]
+        async with httpx.AsyncClient() as client:
+            rb_results = await asyncio.gather(
+                *[fetch_set_info(s, client) for s in rec_set_nums],
+                return_exceptions=True
+            )
+        # Map normalized set_num → Rebrickable data
+        rb_map = {
+            r["set_num"]: r
+            for r in rb_results
+            if isinstance(r, dict) and r.get("set_num")
+        }
+        for section in ("missing_from_collection", "people_like_you"):
+            validated = []
+            for item in recommendations.get(section, []):
+                snum = normalize_set_num(item.get("set_num", ""))
+                # Drop sets the user already owns (safety net)
+                if snum in owned_nums:
+                    continue
+                rb = rb_map.get(snum)
+                if rb:
+                    # Override with authoritative Rebrickable data
+                    if rb.get("name"):
+                        item["name"] = rb["name"]
+                    if rb.get("set_img_url"):
+                        item["img_url"] = rb["set_img_url"]
+                validated.append(item)
+            recommendations[section] = validated
 
     return {
         "set_count": total_count,
