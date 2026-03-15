@@ -460,6 +460,143 @@
 
     .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0 32px; }
 
+    /* ── Collection insights ───────────────────────────────────── */
+    .insights-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 28px;
+    }
+    .insights-heading {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .insights-stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .ins-stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .ins-stat-val { font-size: 1.1rem; font-weight: 800; color: var(--yellow); }
+    .ins-stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .collector-type {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(245,196,0,0.08);
+      border: 1px solid rgba(245,196,0,0.2);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--yellow);
+      margin-bottom: 16px;
+    }
+    .themes-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .theme-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .theme-bar-name {
+      width: 130px;
+      font-size: 0.8rem;
+      color: var(--muted2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
+    .theme-bar-track {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .theme-bar-fill {
+      height: 100%;
+      background: var(--yellow);
+      border-radius: 3px;
+      opacity: 0.7;
+      transition: width 0.6s ease;
+    }
+    .theme-bar-count {
+      font-size: 0.75rem;
+      color: var(--muted);
+      min-width: 28px;
+      text-align: right;
+    }
+
+    /* ── Share button & toast ──────────────────────────────────── */
+    .btn-share {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 16px;
+      background: rgba(245,196,0,0.1);
+      border: 1px solid rgba(245,196,0,0.3);
+      border-radius: 20px;
+      color: var(--yellow);
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-share:hover { background: rgba(245,196,0,0.18); }
+
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #2a2a2a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 0.85rem;
+      color: var(--green);
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 999;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Shared view banner */
+    .shared-banner {
+      background: rgba(59,130,246,0.08);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: var(--radius-sm);
+      padding: 10px 16px;
+      font-size: 0.82rem;
+      color: #7bb3ff;
+      margin-bottom: 20px;
+      display: none;
+    }
+
     footer {
       text-align: center;
       color: var(--muted);
@@ -557,11 +694,32 @@
       </ul>
     </div>
 
+    <div class="toast" id="toast"></div>
+
     <!-- Results -->
     <div class="results" id="results">
+      <div class="shared-banner" id="shared-banner">
+        👀 You're viewing a shared recommendation — <a href="/" style="color:var(--yellow)">get your own</a>
+      </div>
+
       <div class="results-header">
         <div class="results-stats" id="stats-bar"></div>
-        <button class="btn-restart" id="restart-btn">← New search</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-share" id="share-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Share results
+          </button>
+          <button class="btn-restart" id="restart-btn">← New search</button>
+        </div>
+      </div>
+
+      <!-- Collection insights -->
+      <div class="insights-card" id="insights-card" style="display:none">
+        <div class="insights-heading">📊 Collection Insights</div>
+        <div class="insights-stats" id="insights-stats"></div>
+        <div class="collector-type" id="collector-type"></div>
+        <div class="themes-label">Top Themes</div>
+        <div id="themes-bars"></div>
       </div>
 
       <div class="profile-banner">
@@ -595,6 +753,23 @@
   <script>
     // ── Sample data ────────────────────────────────────────────────────────
     const SAMPLE = "75192, 10294, 21325, 42143, 71374, 75313, 10300, 21322, 76405, 42141";
+
+    // ── Load shared results on page load ───────────────────────────────────
+    window.addEventListener("DOMContentLoaded", async () => {
+      const shareId = new URLSearchParams(window.location.search).get("share");
+      if (!shareId) return;
+      setLoading(true);
+      try {
+        const resp = await fetch(`/api/results/${shareId}`);
+        if (!resp.ok) throw new Error("Results not found or expired.");
+        const json = await resp.json();
+        renderResults(json, true);
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    });
 
     // ── Tabs ───────────────────────────────────────────────────────────────
     let activeTab = "manual";
@@ -720,14 +895,42 @@
       icon.textContent = state === "done" ? "✓" : String(n);
     }
 
+    // ── Share logic ────────────────────────────────────────────────────────
+    let currentShareId = null;
+
+    document.getElementById("share-btn").addEventListener("click", () => {
+      if (!currentShareId) return;
+      const url = `${window.location.origin}/?share=${currentShareId}`;
+      navigator.clipboard.writeText(url).then(() => showToast("Link copied to clipboard!"));
+    });
+
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2500);
+    }
+
     // ── Render results ─────────────────────────────────────────────────────
-    function renderResults(data) {
+    function renderResults(data, isShared = false) {
       const rec = data.recommendations;
+      currentShareId = data.share_id || null;
 
       document.getElementById("stats-bar").innerHTML = `
         <div class="stat-pill">Sets analyzed: <strong>${data.set_count}</strong></div>
         ${data.rebrickable_enriched ? '<div class="stat-pill">Data: <strong>Rebrickable ✓</strong></div>' : ""}
       `;
+
+      if (isShared) {
+        document.getElementById("shared-banner").style.display = "block";
+        document.getElementById("share-btn").style.display = "none";
+      }
+
+      // Collection insights
+      const ins = rec.collection_insights;
+      if (ins) {
+        renderInsights(ins, data.set_count);
+      }
 
       document.getElementById("profile-text").textContent = rec.collection_profile || "";
       renderGrid("missing-grid", rec.missing_from_collection || [], 0);
@@ -737,6 +940,43 @@
       setTimeout(() => {
         document.getElementById("results").scrollIntoView({ behavior: "smooth", block: "start" });
       }, 100);
+    }
+
+    function renderInsights(ins, setCount) {
+      const card = document.getElementById("insights-card");
+      card.style.display = "block";
+
+      // Stats row
+      const totalParts = ins.total_estimated_parts
+        ? ins.total_estimated_parts.toLocaleString()
+        : "—";
+      const avgParts = ins.avg_parts_per_set
+        ? ins.avg_parts_per_set.toLocaleString()
+        : "—";
+
+      document.getElementById("insights-stats").innerHTML = `
+        <div class="ins-stat"><span class="ins-stat-val">${setCount}</span><span class="ins-stat-label">Sets</span></div>
+        <div class="ins-stat"><span class="ins-stat-val">${totalParts}</span><span class="ins-stat-label">Est. Parts</span></div>
+        <div class="ins-stat"><span class="ins-stat-val">${avgParts}</span><span class="ins-stat-label">Avg / Set</span></div>
+        ${ins.year_range ? `<div class="ins-stat"><span class="ins-stat-val">${escHtml(ins.year_range)}</span><span class="ins-stat-label">Years</span></div>` : ""}
+      `;
+
+      if (ins.collector_type) {
+        document.getElementById("collector-type").textContent = "🏆 " + ins.collector_type;
+      }
+
+      // Theme bars
+      const themes = ins.top_themes || [];
+      const maxCount = Math.max(...themes.map(t => t.count), 1);
+      document.getElementById("themes-bars").innerHTML = themes.map(t => `
+        <div class="theme-bar-row">
+          <div class="theme-bar-name">${escHtml(t.name)}</div>
+          <div class="theme-bar-track">
+            <div class="theme-bar-fill" style="width:${(t.count / maxCount) * 100}%"></div>
+          </div>
+          <div class="theme-bar-count">${t.count}</div>
+        </div>
+      `).join("");
     }
 
     function renderGrid(gridId, items, baseDelay) {

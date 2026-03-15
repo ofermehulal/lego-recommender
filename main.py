@@ -2,7 +2,9 @@ import os
 import asyncio
 import json
 import re
+import uuid
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 from typing import Optional
 
 import httpx
@@ -27,6 +29,30 @@ if not ANTHROPIC_API_KEY:
     raise RuntimeError("ANTHROPIC_API_KEY environment variable is required")
 
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+# ─── Results store (in-memory, 48h TTL) ──────────────────────────────────────
+_results_store: dict[str, dict] = {}
+
+def store_results(data: dict) -> str:
+    share_id = uuid.uuid4().hex[:8]
+    _results_store[share_id] = {
+        "data": data,
+        "expires": datetime.utcnow() + timedelta(hours=48),
+    }
+    # Prune expired entries
+    now = datetime.utcnow()
+    for k in [k for k, v in _results_store.items() if now > v["expires"]]:
+        del _results_store[k]
+    return share_id
+
+def get_stored_results(share_id: str) -> Optional[dict]:
+    entry = _results_store.get(share_id)
+    if not entry:
+        return None
+    if datetime.utcnow() > entry["expires"]:
+        del _results_store[share_id]
+        return None
+    return entry["data"]
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -206,6 +232,16 @@ OWNED SET NUMBERS (do NOT recommend any of these): {owned_list}
 Analyze their collection and return a JSON object with exactly this structure:
 
 {{
+  "collection_insights": {{
+    "top_themes": [
+      {{"name": "Star Wars", "count": 12}},
+      {{"name": "Technic", "count": 8}}
+    ],
+    "total_estimated_parts": 45000,
+    "avg_parts_per_set": 900,
+    "year_range": "2015–2024",
+    "collector_type": "Flagship Builder"
+  }},
   "collection_profile": "2-3 sentence summary of this collector's taste, style, and focus areas",
   "missing_from_collection": [
     {{
@@ -232,6 +268,8 @@ Analyze their collection and return a JSON object with exactly this structure:
 }}
 
 Rules:
+- top_themes: list the top 5 themes by set count, in descending order
+- collector_type: a short 2-3 word label (e.g. "Flagship Builder", "Theme Completionist", "Technic Enthusiast")
 - Provide exactly 5 sets in each recommendation list
 - NEVER recommend a set the user already owns — cross-check every set_num against the OWNED SET NUMBERS list above
 - missing_from_collection: sets that complete series, fill theme gaps, or are iconic missing pieces given their taste
@@ -331,11 +369,22 @@ async def recommend(request: Request, body: RecommendRequest):
                 validated.append(item)
             recommendations[section] = validated
 
-    return {
+    result = {
         "set_count": total_count,
         "rebrickable_enriched": bool(REBRICKABLE_API_KEY),
         "recommendations": recommendations,
     }
+
+    result["share_id"] = store_results(result)
+    return result
+
+
+@app.get("/api/results/{share_id}")
+async def shared_results(share_id: str):
+    data = get_stored_results(share_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Results not found or expired (48h limit).")
+    return data
 
 
 @app.get("/health")
