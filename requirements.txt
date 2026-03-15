@@ -1,0 +1,9 @@
+fastapi
+slowapi
+uvicorn[standard]
+httpx
+anthropic
+beautifulsoup4
+python-multipart
+python-dotenv
+lxml
